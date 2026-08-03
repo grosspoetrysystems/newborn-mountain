@@ -41,6 +41,12 @@ Verify:
 gh stack --help
 ```
 
+If the repo has multiple remotes (common in worktrees), `gh stack submit` fails with "multiple remotes configured." Fix with:
+
+```sh
+git config remote.pushDefault origin
+```
+
 ## Greenfield workflow
 
 Starting from scratch — plan layers first, then execute each as a branch in the stack.
@@ -100,9 +106,9 @@ git checkout -b feature/01-domain
 # cherry-pick or re-apply only the domain-type commits
 git checkout main
 git checkout -b feature/02-data
-git merge feature/01-domain  # cumulative tree
+git rebase feature/01-domain  # linear cumulative tree — how gh stack models the chain
 # cherry-pick the data pipeline commits
-# repeat for each layer
+# repeat for each layer (rebase onto the previous layer, not merge)
 ```
 
 ### Step 3: Verify each cumulative tree compiles
@@ -123,6 +129,12 @@ gh stack init feature/01-domain feature/02-data feature/03-ui feature/04-wiring
 gh stack submit
 ```
 
+If the monolithic branch was built on a different base than `main` (e.g., a feature fork), specify the base explicitly:
+
+```sh
+gh stack init feature/01-domain feature/02-data --base develop
+```
+
 ### Gotchas for retroactive decomposition
 
 - **Files that span concerns** — `package.json`, lockfiles, locale files (`en.json`), and `.changeset/` are touched by multiple layers. See [Shared file strategy](#shared-file-strategy) below.
@@ -131,14 +143,14 @@ gh stack submit
 
 ## Shared file strategy
 
-Some files are touched by multiple layers. You must decide which layer owns each shared file. The principle: **put the shared file in the layer where it's first consumed, not the last.**
+Some files are touched by multiple layers. You must decide which layer owns each shared file. The principle: **put the shared file change in the earliest layer that touches it, then batch all subsequent edits to that file into the same layer.** "First consumed" means the first layer that needs any part of the file — not per-layer. If multiple layers modify the same JSON/locale file, batch all edits into the earliest layer that touches it to avoid restack conflicts.
 
 | Shared file | Strategy |
 |---|---|
 | `package.json` (deps) | Deps go in the layer that first imports the new package. If layer 2 introduces a new import, `package.json` changes go in layer 2. |
 | `package.json` (scripts) | Script changes go in the layer that first uses the script. |
 | `pnpm-lock.yaml` | Follows `package.json` — goes wherever the dep change lands. Regenerate after each layer that changes deps. |
-| Locale files (`en.json`) | All locale keys go in the UI layer (the layer that renders the strings), not the data layer. Even if the data layer defines the keys conceptually, the UI layer is where they're consumed. |
+| Locale files (`en.json`) | **Batch all locale keys into the earliest layer that adds any keys** — even if later layers also add keys. If each layer edits `en.json` independently, those edits conflict on every restack. One batched edit in the first layer that touches locale avoids this entirely. |
 | `.changeset/` | See [Changeset choreography](#changeset-choreography) below. Each layer gets its own changeset file. |
 | Shared schemas/types | Types shared across layers go in the earliest layer that defines them. Later layers import from the cumulative tree. |
 
@@ -285,11 +297,10 @@ git checkout main && git checkout -b feature/01-domain
 git checkout feature-mono -- src/types/ src/domain/
 git commit -m "feat: add domain types"
 
-# 3. Build cumulative tree
+# 3. Build cumulative tree (rebase, not merge — gh stack models chains linearly)
 git checkout main && git checkout -b feature/02-data
-git merge feature/01-domain
+git rebase feature/01-domain
 git checkout feature-mono -- src/api/ src/queries/
-git commit -m "feat: add data pipeline"
 
 # 4. Verify each layer compiles
 git checkout feature/02-data && pnpm type-check && pnpm test

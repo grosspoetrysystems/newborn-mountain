@@ -103,7 +103,8 @@ Fails `@changesets/parse` v0.4.3+ with "expected a document, but the input is em
 ## Tips
 
 - **Commit messages** — follow your repo's conventions. `gh stack` doesn't override your commit discipline.
-- **Force-push** — `gh stack submit` force-pushes branch updates. This is expected for stacked PRs (the branch history is part of the stack contract), but never force-push to `main`.
+- **Force-push** — `gh stack submit` force-pushes branch updates. This is expected for stacked PRs (the branch history is part of the stack contract), but never force-push to `main`. If doing manual pushes between `gh stack` operations, use `--force-with-lease` (not bare `--force`) to avoid overwriting others' work on shared branches.
+- **Multiple remotes** — if the repo has multiple remotes (common in worktrees), `gh stack submit` fails with "multiple remotes configured." Fix with `git config remote.pushDefault origin`.
 - **Conflicts** — if two layers in the stack touch the same file, resolve in the upper layer and restack.
 - **Merge order** — always merge bottom-up. Merging a middle PR out of order orphans the layers above it.
 
