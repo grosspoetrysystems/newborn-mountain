@@ -170,10 +170,35 @@ button; server-side rebases are unsigned. Use `gh stack rebase` locally, then
 Do **not** flatten a reviewed stack into one giant PR. The point is separate review
 units with explicit dependencies.
 
-Default for an atomic feature: get every layer reviewed/approved, keep the stack
-green and linear, then use the GitHub UI merge box on the **top PR** once (or
-`gh stack merge`). The merge box shows whole-stack status; GitHub lands the top
-plus every unmerged PR below it as one contiguous bottom-up operation.
+**Review up, merge from the top.** Read and approve the stack bottom-up (layer 1 → N),
+confirming each layer is green. Then, once the whole stack is approved and green,
+merge **once from the top PR (N)** — not one layer at a time from the bottom.
+Reviewing climbs up; the merge lands the stack from the top down in a single shot.
+Any PR's merge box lands that PR plus every unmerged PR below it as one contiguous
+bottom-up operation, so merging the **top** lands the entire stack atomically.
+
+**Do not merge the bottom PR one layer at a time.** It feels right — layer 1 is
+closest to `main` — but merging just the bottom PR retargets the layer above onto
+`main` and rebases it, rewriting its head SHA. Branch protection's "dismiss stale
+reviews on push" then dismisses that layer's approval, and the dismissal repeats for
+every remaining layer as you crawl up: the same stale-review trap as a mid-stack
+rebase (see **Review feedback + rebase loop** above). On a 5-stack that is four
+needless re-reviews. Merging from the top avoids it — the whole approved group lands
+together with no intermediate retarget.
+
+**The GitHub web merge button is easy to misread.** Its label reflects only what that
+PR's box will land, and nothing warns you it belongs to a stack:
+- On the **bottom** PR (1/5) it reads **"Merge pull request"** (singular) — it merges
+  only that one layer and silently starts the rebase cascade above.
+- On the **top** PR (5/5) it reads **"Merge pull requests (5)"** — the count is the
+  signal that one click lands all five. You see it only if you open the top PR.
+
+**Prefer the CLI — it is the least ambiguous of all:**
+```sh
+gh stack merge      # lands the whole approved, green, linear stack in one operation
+```
+Make `gh stack merge` (or the **top** PR's merge box) the default; reserve the per-PR
+web button for a deliberate partial merge (below).
 
 Merge lower layers earlier only when they are independently useful and merge-safe:
 foundation refactors, schema/contract expansion, inert flags, test scaffolding,
@@ -185,8 +210,8 @@ gh stack sync --prune
 
 | Situation | Merge posture |
 |---|---|
-| User-visible feature must appear all at once | Approve all layers, merge top once |
-| Lower layer improves code safely by itself | Merge that bottom/mid contiguous segment early |
+| User-visible feature must appear all at once | Approve all layers, then `gh stack merge` (or the top PR) once |
+| Lower layer improves code safely by itself | Merge that bottom/mid contiguous segment early, then `gh stack sync --prune` |
 | Lower layer exposes incomplete behavior | Keep unmerged or hide behind a flag/shim |
 | Review uncovers a bad seam | Restack before merging; do not flatten as a shortcut |
 
@@ -235,6 +260,7 @@ lowest unmerged PR (`stack.base.ref == pull_request.base.ref`) or top PR
 | Fixing lower-layer review feedback on the top branch | Checkout owning branch, commit there, rebase/push upward |
 | Website rebase in signed-commit repo | Rebase locally; server-side rebase commits are unsigned |
 | Mid-stack PR merged alone | Impossible: contiguous segment from lowest unmerged PR always lands |
+| Merging the bottom PR one layer at a time | Each bottom merge rebases the layer above → its approval is dismissed; merge from the top (`gh stack merge`) so the whole approved stack lands at once |
 | Continuing after bottom merge without sync | Run `gh stack sync --prune` |
 | Flattening after review | Keep layers as PRs; merge top once for atomic landing |
 | Full `gh stack rebase`/`sync` per mid-stack fix, dismissing lower approvals | Moving trunk rewrites approved lower layers' SHAs → "dismiss stale reviews" fires; scope with `--upstack --no-trunk` |
