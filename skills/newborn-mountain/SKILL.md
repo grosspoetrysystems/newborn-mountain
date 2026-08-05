@@ -2,7 +2,7 @@
 name: newborn-mountain
 description: >-
   Scaffold stacked PR workflows with gh stack — init a stack, add branches,
-  submit, restack, and manage the chain. Covers both greenfield stacks
+  submit, rebase, sync, and manage the chain. Covers both greenfield stacks
   (plan → exec → gate) and retroactive decomposition of a finished monolithic
   branch into reviewable layers. Use when starting layered feature delivery:
   "stack PRs", "create a PR stack", "gh stack", "stacked pull requests",
@@ -78,14 +78,50 @@ Starting from scratch — plan layers first, then execute each as a branch in th
 
    This pushes all branches and creates a PR for each, targeting the previous branch. The bottom PR targets `main`.
 
-5. **Restack after rebasing** when `main` moves:
+5. **Sync when `main` moves.** Rebases the whole stack onto the latest trunk and pushes:
 
    ```sh
-   gh stack restack
-   gh stack submit
+   gh stack sync
    ```
 
+   `gh stack sync` fetches, fast-forwards trunk, cascade-rebases the stack if trunk moved, and pushes with `--force-with-lease` in one step. (There is no `gh stack restack` — the command is `gh stack rebase`, which `sync` wraps.) Do a full trunk sync deliberately, not after every small edit — see [Mid-stack review fixes](#mid-stack-review-fixes).
+
 6. **Merge bottom-up.** Each PR merges into the next branch's base. When the bottom PR merges to `main`, the rest of the stack automatically retargets.
+
+## Mid-stack review fixes
+
+When a reviewer leaves feedback on layer N, fix it **on the branch that owns the change**, then cascade upward — without dragging the whole stack onto a moving `main`.
+
+```sh
+gh stack checkout feature/03-list   # or: gh stack up/down/top/bottom
+# edit, then commit on this branch
+gh stack rebase --upstack --no-trunk   # rebase N and everything above it, onto each other
+gh stack push                          # force-with-leases only the branches that changed
+```
+
+### Preserve lower-layer approvals
+
+Branch protection's **"dismiss stale reviews on push"** dismisses a layer's approval whenever its head SHA changes. A plain `gh stack rebase` or `gh stack sync` fetches trunk and re-parents the **entire** stack onto the latest `main`; if `main` moved, that rewrites even already-approved layers **below** your fix and dismisses their approvals for no functional reason. In practice this makes a reviewer re-approve the same untouched layer over and over.
+
+- **Mid-stack fix → `gh stack rebase --upstack --no-trunk`.** `--no-trunk` skips the trunk fetch/rebase; `--upstack` limits the cascade to the current branch and above. An L3 fix then dismisses at most L3–L5 and never L1–L2. `gh stack push` no-ops the unchanged lower branches (nothing to push = no dismissal).
+- **Full trunk rebase (`gh stack sync` / `gh stack rebase`) only when you mean it:** a genuine conflict with `main`, or one deliberate pre-merge catch-up — moments where you expect to re-collect approvals anyway.
+
+### Lockfile / generated-file conflicts during a rebase
+
+Never hand-merge conflict markers in `pnpm-lock.yaml` (or other generated files) — you will corrupt them. Take the base side and regenerate:
+
+```sh
+git checkout --ours pnpm-lock.yaml     # keep the rebased base's lockfile
+pnpm install                            # re-add this layer's deps on top
+pnpm install --frozen-lockfile          # must exit clean — this is what CI runs
+git add pnpm-lock.yaml
+gh stack rebase --continue
+```
+
+During a `git rebase`, `--ours` is the branch you are rebasing **onto** (the already-replayed lower layer). Regenerate rather than resolve so the lockfile stays internally consistent with the merged `package.json`.
+
+> A locale/JSON refactor that spans concerns can silently drop unrelated keys when it is edited against a stale base. After a big `en.json` edit, diff the non-target sections against `main` (`git diff origin/main -- <file>`) to catch accidental deletions before pushing.
+
 
 ## Retroactive decomposition
 
@@ -283,7 +319,8 @@ gh stack submit
 ### Inspecting the stack
 
 ```sh
-gh stack ls
+gh stack view          # ordering, PR links, status
+gh stack view --short  # branch names only
 ```
 
 ### Retroactive decomposition of a monolithic branch

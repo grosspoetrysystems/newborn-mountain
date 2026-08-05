@@ -15,7 +15,7 @@ skills/
 ```yaml
 ---
 name: newborn-mountain
-description: Scaffold stacked PR workflows with gh stack — init, submit, restack, decompose.
+description: Scaffold stacked PR workflows with gh stack — init, submit, rebase, sync, decompose.
 ---
 ```
 
@@ -23,8 +23,9 @@ Structured per the [Agent Skills](https://github.com/vercel-labs/skills) spec: `
 
 ## What it covers
 
-- Greenfield stack creation (plan → init → submit → restack)
+- Greenfield stack creation (plan → init → submit → sync)
 - Retroactive decomposition of a finished monolithic branch into layers
+- Mid-stack review fixes that preserve lower-layer approvals (`gh stack rebase --upstack --no-trunk`)
 - Cross-layer shared file strategy (`package.json`, lockfiles, locale files, changesets)
 - Changeset choreography for stacked PRs (none bump type vs real bump on final layer)
 - Teardown guardrails for wrongly-created PRs

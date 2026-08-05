@@ -28,22 +28,39 @@ Each PR targets the previous branch in the stack. The bottom PR targets the base
 
 **This is the mandatory step.** `gh stack submit` registers the chain with GitHub's Stack metadata — Without it, GitHub sees standalone PRs, not a stack. No stack UI, no group-merge, no cascading rebase. Do not substitute `gh pr create` with manual base targeting.
 
-### `gh stack restack`
+### `gh stack rebase`
 
-Rebase the entire stack onto the current base branch. Use when `main` has moved.
+Pull from the remote and run a cascading rebase across the stack, from the trunk upward. This is the real command — there is **no `gh stack restack`**.
 
 ```sh
-gh stack restack
+gh stack rebase                      # rebase whole stack onto latest trunk
+gh stack rebase --upstack --no-trunk # rebase current branch and up, WITHOUT touching trunk
+gh stack rebase --downstack          # only trunk..current
+gh stack rebase --continue           # after resolving a conflict
+gh stack rebase --abort              # restore all branches to pre-rebase state
 ```
 
-After restacking, run `gh stack submit` to update the PRs.
+On conflict it pauses and prints the conflicted files; resolve, `git add`, then `--continue`. `git rerere` (enabled by `gh stack init`) remembers resolutions across rebases. Prefer `--upstack --no-trunk` for mid-stack review fixes so you do not re-parent — and dismiss the approvals of — lower layers.
 
-### `gh stack ls`
+### `gh stack sync`
 
-List the branches in the current stack with their PR status.
+One-shot: fetch, reconcile local/remote stack, fast-forward trunk, cascade-rebase **if trunk moved**, push with `--force-with-lease`, and relink PRs.
 
 ```sh
-gh stack ls
+gh stack sync
+gh stack sync --prune   # also delete local branches for merged PRs
+```
+
+Use after a bottom/partial merge, or as a deliberate catch-up to `main`. Because it re-parents onto a moved trunk, expect it to dismiss stale approvals on lower layers — do not run it after every small edit.
+
+### `gh stack view`
+
+Show the branches in the stack with ordering and PR status. (There is **no `gh stack ls`**.)
+
+```sh
+gh stack view
+gh stack view --short   # branch names only
+gh stack view --json    # machine-readable
 ```
 
 ### `gh stack add`
@@ -54,12 +71,31 @@ Add a new branch to the top of an existing stack.
 gh stack add <branch-name>
 ```
 
-### `gh stack rm`
+### `gh stack push`
 
-Remove a branch from the stack.
+Push active branches with a per-branch `--force-with-lease`. Branches whose SHA did not change are no-ops (so they do not trip "dismiss stale reviews").
 
 ```sh
-gh stack rm <branch-name>
+gh stack push
+```
+
+### `gh stack merge`
+
+Merge the stack bottom-up, up to and including a chosen PR. All-or-nothing; merge-queue aware.
+
+```sh
+gh stack merge          # interactive
+gh stack merge 42       # up to PR 42
+gh stack merge --yes --squash
+```
+
+### Removing / restructuring branches
+
+There is **no `gh stack rm`**. To drop, reorder, fold, or insert branches, use `gh stack modify` (interactive; needs a clean, linear tree) or `gh stack unstack` to dissolve stack tracking while keeping the branches/PRs.
+
+```sh
+gh stack modify         # interactive restructure (drop with `x`)
+gh stack unstack        # remove stack locally and on GitHub, keep branches
 ```
 
 ## Teardown warnings
@@ -105,7 +141,7 @@ Fails `@changesets/parse` v0.4.3+ with "expected a document, but the input is em
 - **Commit messages** — follow your repo's conventions. `gh stack` doesn't override your commit discipline.
 - **Force-push** — `gh stack submit` force-pushes branch updates. This is expected for stacked PRs (the branch history is part of the stack contract), but never force-push to `main`. If doing manual pushes between `gh stack` operations, use `--force-with-lease` (not bare `--force`) to avoid overwriting others' work on shared branches.
 - **Multiple remotes** — if the repo has multiple remotes (common in worktrees), `gh stack submit` fails with "multiple remotes configured." Fix with `git config remote.pushDefault origin`.
-- **Conflicts** — if two layers in the stack touch the same file, resolve in the upper layer and restack.
+- **Conflicts** — if two layers touch the same file, resolve on the layer that owns the change and cascade with `gh stack rebase` (`--upstack --no-trunk` for a mid-stack fix). For generated files (`pnpm-lock.yaml`), regenerate instead of hand-merging: `git checkout --ours`, `pnpm install`, verify `--frozen-lockfile`, `git add`, `gh stack rebase --continue`.
 - **Merge order** — always merge bottom-up. Merging a middle PR out of order orphans the layers above it.
 
 ## Installation
