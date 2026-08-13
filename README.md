@@ -14,8 +14,7 @@ newborn-mountain/
 └── references/
     ├── commands.md                  # native command behavior details
     ├── stack-design.md              # native layer planning guidance
-    ├── troubleshooting.md           # native recovery guidance
-    └── gh-stack-commands.md         # legacy pointer to the split references
+    └── troubleshooting.md           # native recovery guidance
 ```
 
 ## Frontmatter
