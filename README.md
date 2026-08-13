@@ -10,9 +10,12 @@ the writing/orchestration skill.
 
 ```text
 newborn-mountain/
-├── SKILL.md                     # frontmatter + core stack workflow
+├── SKILL.md                         # frontmatter + core stack workflow
 └── references/
-    └── gh-stack-commands.md     # command reference + recovery notes
+    ├── commands.md                  # native command behavior details
+    ├── stack-design.md              # native layer planning guidance
+    ├── troubleshooting.md           # native recovery guidance
+    └── gh-stack-commands.md         # legacy pointer to the split references
 ```
 
 ## Frontmatter
@@ -21,21 +24,23 @@ newborn-mountain/
 ---
 name: newborn-mountain
 description: >-
-  Use when creating, reviewing, rebasing, merging, or retrospectively decomposing
-  stacked pull requests with GitHub Stacks / gh stack — "stack PRs", "create a PR
-  stack", "split this branch into a stack", "gh stack", "stacked pull requests",
-  "chain dependent PRs", "review a stack", "rebase a stack".
+  Use when creating, reviewing, rebasing, merging, checking out, or retrospectively
+  decomposing stacked pull requests with GitHub Stacks / gh stack — "stack PRs",
+  "create a PR stack", "split this branch into a stack", "gh stack", "stacked pull
+  requests", "chain dependent PRs", "review a stack", "rebase a stack", or when a
+  stack is already checked out.
 ---
 ```
 
 ## What it covers
 
 - When a change is stack-shaped vs. a single PR.
-- Greenfield stack creation with `gh stack init/add/submit/view`.
+- Greenfield stack creation with agent-safe `gh stack init/add/submit/view` forms.
 - Retrospective decomposition of a finished branch into merge-safe layers.
+- GitHub-native command behavior: TTY traps, JSON state, exit codes, remote config, sync/rebase/merge/link semantics.
 - Shared-file ownership (`package.json`, lockfiles, locale files, generated registries, changesets).
-- Review feedback on the owning branch, then cascade with `gh stack rebase` + `gh stack push`.
-- Merge strategy: approve all layers and merge the top PR once for atomic landing, or merge safe lower segments early.
+- Review feedback on the owning branch, then cascade with `gh stack rebase --upstack --no-trunk` + `gh stack push`.
+- Merge strategy: approve all layers and merge the top PR/stack number once for atomic landing, or merge safe lower segments early.
 - GitHub UI merge box, merge queue behavior, CI stack metadata, and troubleshooting.
 
 ## Install
@@ -48,8 +53,10 @@ Or copy this repo's `SKILL.md` and `references/` into a `newborn-mountain/` fold
 
 ## Source material
 
-Reconciled from the current `stacked-pr-decomposition` working skill and GitHub's
-official stacked pull request docs:
+Reconciled from the current `stacked-pr-decomposition` working skill, GitHub's
+native `github/gh-stack` skill, and GitHub's official stacked pull request docs:
+
+- https://github.com/github/gh-stack/tree/main/skills/gh-stack
 
 - https://docs.github.com/en/pull-requests/how-tos/stacked-pull-requests
 - https://docs.github.com/en/pull-requests/reference/stacked-prs-cli-commands
